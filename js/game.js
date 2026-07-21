@@ -1,14 +1,14 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.1";
+  const APP_VERSION = "1.4.2";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const MAX_LIVES = 3;
   const BLOCK_H = 78;
   const BASE_W = 92;
   const MIN_OVERLAP = 0.28;
-  const NEAR_MISS_OVERLAP = 0.42;
+  const NEAR_MISS_OVERLAP = 0.5; // under half overlap but still a valid land
   const PERFECT_TOL = 8;
   const COMBO_MS = 4200;
   const CRANE_SCREEN_Y = 70;
@@ -692,7 +692,8 @@
 
   function placeBlock(block, overlapRatio, offset) {
     const perfect = Math.abs(offset) <= PERFECT_TOL;
-    const nearMissLand = !perfect && overlapRatio < NEAR_MISS_OVERLAP;
+    // Valid land but less than half overlapping the floor below
+    const partialLand = !perfect && overlapRatio < NEAR_MISS_OVERLAP;
 
     let points = Math.round(40 + floors * 12);
     points = Math.round(points * (0.55 + overlapRatio * 0.7));
@@ -709,24 +710,23 @@
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ffe066", 22, 1.3);
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ffffff", 10, 0.9);
       addRing(block.x + block.w / 2, block.y + block.h / 2, "rgba(255, 214, 10, 0.9)");
-      setShake(5);
+      setShake(4);
       sfx("perfect");
       celebrateComboThreshold();
     } else if (combo > 0 && comboMsLeft > 0) {
       points = Math.round(points * (1 + combo * 0.2));
       comboMsLeft = Math.max(comboMsLeft, COMBO_MS * 0.85);
-      setShake(nearMissLand ? 12 : 7);
-      if (nearMissLand) {
-        flashRed();
-        addFloatText(block.x + block.w / 2, block.y - 8, "CLOSE!", "#c44536", 1.05);
+      setShake(partialLand ? 5 : 3);
+      // Successful land — no miss-style red flash; keep it quiet
+      if (partialLand) {
+        burst(block.x + block.w / 2, block.y + block.h * 0.85, "#ced4da", 6, 0.55);
       }
     } else {
       combo = 0;
       comboMsLeft = 0;
-      setShake(nearMissLand ? 12 : 7);
-      if (nearMissLand) {
-        flashRed();
-        addFloatText(block.x + block.w / 2, block.y - 8, "CLOSE!", "#c44536", 1.05);
+      setShake(partialLand ? 5 : 3);
+      if (partialLand) {
+        burst(block.x + block.w / 2, block.y + block.h * 0.85, "#ced4da", 6, 0.55);
       }
     }
 
@@ -742,7 +742,8 @@
       h: block.h,
       palette: block.palette,
     });
-    squash = { t: 0, dur: 0.18 };
+    // Light settle only on solid / perfect lands; skip on ragged partials (looks odd)
+    squash = partialLand ? null : { t: 0, dur: 0.16 };
 
     instability += Math.abs(offset) * 0.35 + (perfect ? 0 : 4);
     instability = Math.max(0, instability - (perfect ? 3 : 0));
@@ -941,9 +942,12 @@
     if (state === "dropping" && falling) {
       falling.vy += 2200 * dt;
       falling.y += falling.vy * dt;
-      falling.tilt *= Math.max(0, 1 - dt * 3);
+      // Straighten before impact so the land snap doesn't look odd
       const top = topBlock();
       falling.targetY = top.y - falling.h;
+      const dist = Math.max(0, falling.targetY - falling.y);
+      const straighten = dist < BLOCK_H * 1.2 ? clamp(1 - dist / (BLOCK_H * 1.2), 0, 1) : 0;
+      falling.tilt *= Math.max(0, 1 - dt * (3 + straighten * 14));
       if (falling.y >= falling.targetY) {
         falling.y = falling.targetY;
         falling.tilt = 0;
