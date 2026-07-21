@@ -1,15 +1,21 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.0";
+  const APP_VERSION = "1.2.0";
   const STORAGE_KEY = "tower_bloxx_best";
   const MAX_LIVES = 3;
   // Chunky cube floors (classic Tower Bloxx), not long thin slabs
   const BLOCK_H = 78;
   const BASE_W = 92;
   const MIN_OVERLAP = 0.28;
-  const PERFECT_TOL = 6;
-  const COMBO_MS = 2800;
+  const PERFECT_TOL = 8;
+  const COMBO_MS = 4200;
+  const CRANE_SCREEN_Y = 70;
+  // Keep tower top low enough that the drop gap stays challenging
+  const FOCUS_SCREEN_Y = 300;
+  const DROP_GAP = 130;
+  const MAX_TOWER_SWAY = 34; // px at tip — still hittable during combo timing
+  const MAX_COMBO = 99;
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -59,7 +65,7 @@
   let lives = MAX_LIVES;
   let best = Number(localStorage.getItem(STORAGE_KEY) || 0);
   let combo = 0;
-  let comboUntil = 0;
+  let comboMsLeft = 0;
   let cameraY = 0;
   let targetCameraY = 0;
   let tower = [];
@@ -71,6 +77,9 @@
   let groundY = 0;
   let swingPhase = 0;
   let swingAnchorX = 0;
+  let swayPhase = 0;
+  let swayAmp = 0;
+  let instability = 0;
   let showHint = true;
 
   function resize() {
@@ -117,14 +126,11 @@
     el.floors.textContent = String(floors);
     renderLives();
 
-    const now = performance.now();
-    if (combo > 0 && now < comboUntil) {
+    if (combo > 0 && comboMsLeft > 0) {
       el.comboWrap.hidden = false;
-      const left = (comboUntil - now) / COMBO_MS;
-      el.comboBar.style.width = `${clamp(left, 0, 1) * 100}%`;
+      el.comboBar.style.width = `${clamp(comboMsLeft / COMBO_MS, 0, 1) * 100}%`;
       el.comboText.textContent = `COMBO x${combo}`;
     } else {
-      if (combo > 0 && now >= comboUntil) combo = 0;
       el.comboWrap.hidden = true;
     }
   }
@@ -134,12 +140,42 @@
   }
 
   function swingSpeed() {
-    return 1.35 + floors * 0.045;
+    return 1.45 + floors * 0.07 + Math.min(instability * 0.01, 0.5);
   }
 
   function swingAmplitude() {
-    const base = Math.min(W * 0.38, 180);
-    return base + Math.min(floors * 2.2, 40);
+    const base = Math.min(W * 0.36, 170);
+    return base + Math.min(floors * 3.2, 55);
+  }
+
+  function swaySpeed() {
+    return 1.1 + floors * 0.035;
+  }
+
+  function updateSwayAmp() {
+    const heightAmp = Math.max(0, (floors - 2) * 2.2);
+    const leanAmp = Math.min(instability * 0.22, 16);
+    swayAmp = clamp(heightAmp + leanAmp, 0, MAX_TOWER_SWAY);
+  }
+
+  // Reed-like sway: base steady, tip moves most
+  function blockSwayX(index) {
+    if (tower.length <= 1 || swayAmp <= 0) return 0;
+    const t = index / (tower.length - 1);
+    return Math.sin(swayPhase) * swayAmp * t * t;
+  }
+
+  function topSwayX() {
+    return blockSwayX(tower.length - 1);
+  }
+
+  function topCenterX() {
+    const top = topBlock();
+    return top.x + top.w / 2 + topSwayX();
+  }
+
+  function craneHangY() {
+    return CRANE_SCREEN_Y;
   }
 
   function spawnCraneBlock() {
@@ -147,7 +183,7 @@
     const width = top ? top.w : BASE_W;
     const palette = FLOOR_PALETTES[floors % FLOOR_PALETTES.length];
     if (!Number.isFinite(swingAnchorX) || swingAnchorX === 0) {
-      swingAnchorX = top.x + top.w / 2;
+      swingAnchorX = topCenterX();
     }
     const amp = swingAmplitude();
     crane = {
@@ -155,7 +191,7 @@
       h: BLOCK_H,
       // Continue from current swing phase (no reset jump)
       x: swingAnchorX + Math.sin(swingPhase) * amp,
-      y: 78,
+      y: craneHangY(),
       palette,
       angle: 0,
     };
@@ -167,7 +203,7 @@
     floors = 0;
     lives = MAX_LIVES;
     combo = 0;
-    comboUntil = 0;
+    comboMsLeft = 0;
     cameraY = 0;
     targetCameraY = 0;
     tower = [];
@@ -177,6 +213,9 @@
     shake = 0;
     swingPhase = 0;
     swingAnchorX = 0;
+    swayPhase = 0;
+    swayAmp = 0;
+    instability = 0;
     showHint = true;
     el.hint.classList.remove("hidden");
 
@@ -240,10 +279,11 @@
 
     const top = topBlock();
     const worldX = crane.x - crane.w / 2;
+    const startY = cameraY + craneHangY();
 
     falling = {
       x: worldX,
-      y: cameraY + 90,
+      y: startY,
       w: crane.w,
       h: crane.h,
       vy: 0,
@@ -256,46 +296,50 @@
   }
 
   function placeBlock(block, overlapRatio, offset) {
-    const top = topBlock();
     const perfect = Math.abs(offset) <= PERFECT_TOL;
-    const now = performance.now();
 
     let points = Math.round(40 + floors * 12);
     points = Math.round(points * (0.55 + overlapRatio * 0.7));
 
     if (perfect) {
-      combo = now < comboUntil ? combo + 1 : 1;
-      comboUntil = now + COMBO_MS;
+      combo = combo > 0 && comboMsLeft > 0 ? Math.min(MAX_COMBO, combo + 1) : 1;
+      comboMsLeft = COMBO_MS;
       points = Math.round(points * (1 + combo * 0.35));
       addFloatText(block.x + block.w / 2, block.y, "PERFECT!", "#e85d04");
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ffe066", 14);
-    } else if (now < comboUntil) {
+    } else if (combo > 0 && comboMsLeft > 0) {
+      // Keep combo alive on decent lands; refresh enough time for another swing
       points = Math.round(points * (1 + combo * 0.2));
-      comboUntil = now + COMBO_MS * 0.75;
+      comboMsLeft = Math.max(comboMsLeft, COMBO_MS * 0.85);
     } else {
       combo = 0;
+      comboMsLeft = 0;
     }
 
     score += points;
     floors += 1;
     addFloatText(block.x + block.w / 2, block.y + 18, `+${points}`, "#1f2a36");
 
+    // Rest-space position (remove current tip sway so the stack stays coherent)
+    const restX = block.x - topSwayX();
     tower.push({
-      x: block.x,
+      x: restX,
       y: block.y,
       w: block.w,
       h: block.h,
       palette: block.palette,
     });
 
-    // Soft lean: if offset large, nudge visual sway via camera shake
+    instability += Math.abs(offset) * 0.35 + (perfect ? 0 : 4);
+    instability = Math.max(0, instability - (perfect ? 3 : 0));
+    updateSwayAmp();
+
     shake = perfect ? 4 : 8 + Math.abs(offset) * 0.08;
 
-    // Follow tower upward only once the top rises past the focus line.
-    // (y grows downward, so camera decreases into negative values as we scroll up.)
-    const FOCUS_SCREEN_Y = 170;
+    // Keep a readable drop gap between crane and tower top
     const peak = topBlock();
-    targetCameraY = Math.min(targetCameraY, peak.y - FOCUS_SCREEN_Y);
+    const desiredFocus = Math.max(FOCUS_SCREEN_Y, craneHangY() + BLOCK_H + DROP_GAP);
+    targetCameraY = Math.min(targetCameraY, peak.y - desiredFocus);
 
     falling = null;
     updateHud();
@@ -308,7 +352,9 @@
     burst(block.x + block.w / 2, block.y + block.h / 2, block.palette.wall, 16);
     addFloatText(W / 2, H * 0.35, "MISS!", "#c44536");
     combo = 0;
-    comboUntil = 0;
+    comboMsLeft = 0;
+    instability += 10;
+    updateSwayAmp();
     falling = null;
     updateHud();
 
@@ -321,11 +367,13 @@
 
   function resolveLanding(block) {
     const top = topBlock();
-    const left = Math.max(block.x, top.x);
-    const right = Math.min(block.x + block.w, top.x + top.w);
+    const sway = topSwayX();
+    const topX = top.x + sway;
+    const left = Math.max(block.x, topX);
+    const right = Math.min(block.x + block.w, topX + top.w);
     const overlap = right - left;
     const overlapRatio = overlap / block.w;
-    const offset = block.x + block.w / 2 - (top.x + top.w / 2);
+    const offset = block.x + block.w / 2 - (topX + top.w / 2);
 
     if (overlap <= 0 || overlapRatio < MIN_OVERLAP) {
       missBlock(block);
@@ -341,28 +389,40 @@
     cameraY += (targetCameraY - cameraY) * Math.min(1, dt * 4);
     if (shake > 0) shake = Math.max(0, shake - dt * 30);
 
-    // Combo bar tick
+    // Combo timer only ticks while aiming (not during the fall)
+    if (state === "playing" && combo > 0 && comboMsLeft > 0) {
+      comboMsLeft -= dt * 1000;
+      if (comboMsLeft <= 0) {
+        combo = 0;
+        comboMsLeft = 0;
+      }
+    }
+
     if (state === "playing" || state === "dropping") updateHud();
 
-    // Keep swing momentum running even while a block is falling
+    // Keep swing + tower sway momentum running even while a block is falling
     if (state === "playing" || state === "dropping") {
       swingPhase += dt * swingSpeed();
+      swayPhase += dt * swaySpeed();
+      updateSwayAmp();
     }
 
     if (state === "playing" && crane) {
       const amp = swingAmplitude();
-      const top = topBlock();
-      const targetCenter = top.x + top.w / 2;
-      // Ease anchor toward tower top so off-center landings don't teleport the wire
+      const targetCenter = topCenterX();
+      // Ease anchor toward swayed tower top so motion stays continuous
       swingAnchorX += (targetCenter - swingAnchorX) * Math.min(1, dt * 3);
       crane.x = swingAnchorX + Math.sin(swingPhase) * amp;
-      crane.y = 78;
+      crane.y = craneHangY();
     }
 
     if (state === "dropping" && falling) {
       falling.vy += 2200 * dt;
       falling.y += falling.vy * dt;
       falling.tilt *= Math.max(0, 1 - dt * 3);
+      // Track moving tower tip while falling
+      const top = topBlock();
+      falling.targetY = top.y - falling.h;
       if (falling.y >= falling.targetY) {
         falling.y = falling.targetY;
         falling.tilt = 0;
@@ -657,8 +717,10 @@
     drawSky();
     drawGround();
 
-    for (const b of tower) {
-      drawBlock(b, b.y - cameraY);
+    for (let i = 0; i < tower.length; i++) {
+      const b = tower[i];
+      const sway = blockSwayX(i);
+      drawBlock({ ...b, x: b.x + sway }, b.y - cameraY);
     }
 
     if (falling) {
