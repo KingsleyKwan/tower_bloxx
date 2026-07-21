@@ -7,3 +7,5 @@ Thumbs.db
 *.png
 !assets/**/*.png
 !assets/**/*.jpeg
+!assets/**/*.jpg
+!.github/social-preview.jpg
