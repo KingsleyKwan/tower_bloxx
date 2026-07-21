@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.2";
+  const APP_VERSION = "1.3.3";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const MAX_LIVES = 3;
@@ -17,8 +17,8 @@
   const MAX_TOWER_SWAY = 34;
   const MAX_COMBO = 99;
   const RESCUE_FLOOR_UNLOCK = 3;
-  const MIN_VIEW_SCALE = 0.68;
-  const VIEW_EDGE_PAD = 28;
+  const MIN_VIEW_SCALE = 0.4;
+  const VIEW_EDGE_PAD = 48;
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -696,12 +696,17 @@
     return Math.max(FOCUS_SCREEN_Y, craneHangY() + BLOCK_H + DROP_GAP * 0.45);
   }
 
+  // How far ground/skyline must extend in world space to fill the screen after zoom
+  function zoomBleed() {
+    const s = Math.max(viewScale, MIN_VIEW_SCALE * 0.9);
+    return (W / 2) * (1 / s - 1) + 120;
+  }
+
   // Scale needed so [left,right] stays inside the screen after zoom-about-center-X
   function scaleToFitX(left, right) {
     const ox = W / 2;
     let s = 1;
     if (left < VIEW_EDGE_PAD) {
-      // ox + (left - ox) * s >= pad  →  s <= (pad - ox) / (left - ox) when left < ox
       const den = left - ox;
       if (den < 0) s = Math.min(s, (VIEW_EDGE_PAD - ox) / den);
     }
@@ -709,7 +714,8 @@
       const den = right - ox;
       if (den > 0) s = Math.min(s, (W - VIEW_EDGE_PAD - ox) / den);
     }
-    return clamp(s, MIN_VIEW_SCALE, 1);
+    // Extra safety so holding bloxx + tower tip never kiss the bezel
+    return clamp(s * 0.92, MIN_VIEW_SCALE, 1);
   }
 
   function updateViewScale() {
@@ -717,18 +723,31 @@
       targetViewScale = 1;
       return;
     }
-    // Fit the whole rigid tower (shared sway) plus crane swing
-    const tip = Math.abs(swayAmp);
+
+    const sway = Math.abs(swayAmp);
+    const amp = swingAmplitude();
+    const anchor = Number.isFinite(swingAnchorX) && swingAnchorX ? swingAnchorX : topCenterX();
+    const holdHalf = (crane ? crane.w : BASE_W) / 2 + 18;
+
     let left = Infinity;
     let right = -Infinity;
+
     for (const b of tower) {
-      left = Math.min(left, b.x - tip);
-      right = Math.max(right, b.x + b.w + tip);
+      left = Math.min(left, b.x - sway);
+      right = Math.max(right, b.x + b.w + sway);
     }
 
+    // Holding bloxx full swing range (not only current pose)
+    left = Math.min(left, anchor - amp - holdHalf);
+    right = Math.max(right, anchor + amp + holdHalf);
+
     if (crane) {
-      left = Math.min(left, crane.x - crane.w / 2);
-      right = Math.max(right, crane.x + crane.w / 2);
+      left = Math.min(left, crane.x - crane.w / 2 - 12);
+      right = Math.max(right, crane.x + crane.w / 2 + 12);
+    }
+    if (falling) {
+      left = Math.min(left, falling.x - 12);
+      right = Math.max(right, falling.x + falling.w + 12);
     }
 
     targetViewScale = scaleToFitX(left, right);
@@ -862,24 +881,40 @@
 
   function drawGround() {
     const y = groundY - cameraY;
+    const bleed = zoomBleed();
+    const x0 = -bleed;
+    const span = W + bleed * 2;
+
+    // Wide city silhouette so zoom-out never shows empty side strips
     ctx.fillStyle = activeTheme.city;
-    for (let i = 0; i < 12; i++) {
-      const bx = (i / 12) * W + ((i * 37) % 20);
-      const bh = 40 + ((i * 53) % 80);
-      ctx.fillRect(bx, y - bh + 8, 28 + (i % 3) * 10, bh);
+    const buildingCount = Math.ceil(span / 36);
+    for (let i = 0; i < buildingCount; i++) {
+      const bx = x0 + i * 36 + ((i * 37) % 20);
+      const bh = 36 + ((i * 53) % 90);
+      ctx.fillRect(bx, y - bh + 8, 26 + (i % 3) * 10, bh);
     }
 
+    // Extra-tall fill so zoomed view still has solid ground underfoot
     ctx.fillStyle = activeTheme.ground[0];
-    ctx.fillRect(0, y, W, H - y + 40);
+    ctx.fillRect(x0, y, span, Math.max(H, 900));
     ctx.fillStyle = activeTheme.ground[1];
-    ctx.fillRect(0, y, W, 10);
+    ctx.fillRect(x0, y, span, 12);
+
+    // Subtle ground texture line
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y + 1);
+    ctx.lineTo(x0 + span, y + 1);
+    ctx.stroke();
 
     const base = tower[0];
     if (base) {
+      const sway = towerSwayX();
       ctx.fillStyle = "#868e96";
-      ctx.fillRect(base.x - 18, y - 6, base.w + 36, 14);
+      ctx.fillRect(base.x + sway - 22, y - 6, base.w + 44, 14);
       ctx.fillStyle = "#495057";
-      ctx.fillRect(base.x - 28, y + 4, base.w + 56, 18);
+      ctx.fillRect(base.x + sway - 34, y + 4, base.w + 68, 22);
     }
   }
 
@@ -1020,17 +1055,19 @@
     const topY = 18;
     const blockY = crane.y;
     const tilt = Math.sin(swingPhase) * 0.14;
+    const bleed = zoomBleed();
 
     for (const t of trails) {
       drawBlock(t, t.y, 0, clamp(t.life * 0.45, 0, 0.35));
     }
 
+    // Boom spans the zoomed world so it never looks cut off
     ctx.strokeStyle = "#c9a227";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(W * 0.12, topY + 8);
-    ctx.lineTo(W * 0.88, topY + 8);
+    ctx.moveTo(-bleed, topY + 8);
+    ctx.lineTo(W + bleed, topY + 8);
     ctx.stroke();
 
     ctx.strokeStyle = "#6c757d";
