@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1.3.3" />
+  <link rel="stylesheet" href="css/style.css?v=1.4.0" />
 </head>
 <body>
   <div id="app">
@@ -52,7 +52,7 @@
     <div id="banner" class="banner hidden"></div>
 
     <section id="start-screen" class="overlay" role="dialog" aria-labelledby="start-title">
-      <div class="panel">
+      <div class="panel panel-scroll">
         <p class="brand">Tower Bloxx</p>
         <h1 id="start-title">Build the tallest tower</h1>
         <p class="lede">A crane swings each floor. Drop it onto the stack. Perfect landings fill your combo and pack in more residents.</p>
@@ -64,12 +64,19 @@
         <button id="btn-start" class="btn primary" type="button">Play</button>
         <p id="best-start" class="best-note"></p>
         <p id="themes-start" class="themes-note"></p>
-        <p class="version" id="app-version">v1.3.3</p>
+
+        <div class="board-block">
+          <h2 class="board-title">Top 10</h2>
+          <p id="board-status-start" class="board-status">Loading…</p>
+          <ol id="board-list-start" class="board-list"></ol>
+        </div>
+
+        <p class="version" id="app-version">v1.4.0</p>
       </div>
     </section>
 
     <section id="gameover-screen" class="overlay hidden" role="dialog" aria-labelledby="gameover-title">
-      <div class="panel">
+      <div class="panel panel-scroll">
         <p class="brand">Tower Bloxx</p>
         <div class="go-title-row">
           <h1 id="gameover-title">Game Over</h1>
@@ -101,11 +108,45 @@
           </div>
         </div>
         <p id="theme-unlock-note" class="themes-note"></p>
+
+        <div class="board-block">
+          <h2 class="board-title">Top 10</h2>
+          <p id="board-status-end" class="board-status"></p>
+          <ol id="board-list-end" class="board-list"></ol>
+        </div>
+
         <button id="btn-retry" class="btn primary" type="button">Try Again</button>
+      </div>
+    </section>
+
+    <section id="name-screen" class="overlay hidden" role="dialog" aria-labelledby="name-title">
+      <div class="panel">
+        <p class="brand">Tower Bloxx</p>
+        <h1 id="name-title">Top 10!</h1>
+        <p class="lede">Your population made the board. Enter a name (max 10 characters).</p>
+        <p id="name-score" class="name-score">0</p>
+        <label class="name-label" for="player-name">Name</label>
+        <input
+          id="player-name"
+          class="name-input"
+          type="text"
+          maxlength="10"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="Your name"
+        />
+        <p id="name-error" class="name-error" hidden></p>
+        <div class="name-actions">
+          <button id="btn-save-score" class="btn primary" type="button">Save to Top 10</button>
+          <button id="btn-skip-score" class="btn ghost" type="button">Skip</button>
+        </div>
       </div>
     </section>
   </div>
 
-  <script src="js/game.js?v=1.3.3"></script>
+  <script src="js/leaderboard-config.js?v=1.4.0"></script>
+  <script src="js/leaderboard.js?v=1.4.0"></script>
+  <script src="js/game.js?v=1.4.0"></script>
 </body>
 </html>

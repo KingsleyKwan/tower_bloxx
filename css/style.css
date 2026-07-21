@@ -280,6 +280,12 @@ body {
   text-align: center;
 }
 
+.panel-scroll {
+  max-height: min(92dvh, 920px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .brand {
   font-size: clamp(2rem, 8vw, 2.6rem);
   font-weight: 900;
@@ -401,6 +407,125 @@ body {
   min-height: 1.2em;
 }
 
+.board-block {
+  margin: 8px 0 16px;
+  text-align: left;
+}
+
+.board-title {
+  font-size: 0.95rem;
+  font-weight: 900;
+  margin-bottom: 6px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.board-status {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-height: 1.1em;
+  margin-bottom: 6px;
+}
+
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(78, 184, 232, 0.1);
+}
+
+.board-list li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  border-bottom: 1px solid rgba(31, 42, 54, 0.06);
+}
+
+.board-list li:last-child {
+  border-bottom: none;
+}
+
+.board-list .rank {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-list .pname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-list .pscore {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-deep);
+}
+
+.board-list li.empty {
+  display: block;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.name-score {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--accent);
+  margin: 4px 0 14px;
+}
+
+.name-label {
+  display: block;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.name-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid rgba(31, 42, 54, 0.12);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: #fff;
+  outline: none;
+}
+
+.name-input:focus {
+  border-color: var(--accent);
+}
+
+.name-error {
+  margin-top: 8px;
+  color: #c44536;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.name-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .btn {
   appearance: none;
   border: none;
@@ -426,6 +551,16 @@ body {
 .btn.primary:active {
   transform: translateY(3px);
   box-shadow: 0 4px 0 #8f3600, 0 6px 12px rgba(232, 93, 4, 0.3);
+}
+
+.btn.ghost {
+  color: var(--ink);
+  background: rgba(31, 42, 54, 0.08);
+  box-shadow: none;
+}
+
+.btn.ghost:active {
+  transform: translateY(1px);
 }
 
 .best-note {

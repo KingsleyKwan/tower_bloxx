@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.3";
+  const APP_VERSION = "1.4.0";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const MAX_LIVES = 3;
@@ -50,6 +50,16 @@
     bestStart: document.getElementById("best-start"),
     themesStart: document.getElementById("themes-start"),
     gameoverLede: document.getElementById("gameover-lede"),
+    nameScreen: document.getElementById("name-screen"),
+    nameScore: document.getElementById("name-score"),
+    playerName: document.getElementById("player-name"),
+    nameError: document.getElementById("name-error"),
+    btnSaveScore: document.getElementById("btn-save-score"),
+    btnSkipScore: document.getElementById("btn-skip-score"),
+    boardListStart: document.getElementById("board-list-start"),
+    boardListEnd: document.getElementById("board-list-end"),
+    boardStatusStart: document.getElementById("board-status-start"),
+    boardStatusEnd: document.getElementById("board-status-end"),
   };
 
   const FLOOR_PALETTES = [
@@ -163,7 +173,69 @@
   let activeTheme = THEMES[0];
   let bannerTimer = 0;
   let audioCtx = null;
-  let squash = null; // whole-tower settle pulse { t, dur }
+  let squash = null;
+  let pendingBoardScore = 0;
+  let cachedTop10 = [];
+
+  function renderBoardList(listEl, statusEl, entries, statusText) {
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    if (statusEl) statusEl.textContent = statusText || "";
+    if (!entries || !entries.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "No scores yet — be the first!";
+      listEl.appendChild(li);
+      return;
+    }
+    entries.forEach((e, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="rank">${i + 1}</span><span class="pname"></span><span class="pscore"></span>`;
+      li.querySelector(".pname").textContent = e.name;
+      li.querySelector(".pscore").textContent = String(e.score);
+      listEl.appendChild(li);
+    });
+  }
+
+  async function refreshBoards(statusHint) {
+    const Board = window.TowerBloxxBoard;
+    if (!Board) {
+      renderBoardList(el.boardListStart, el.boardStatusStart, [], "Board unavailable");
+      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], "Board unavailable");
+      return [];
+    }
+    if (el.boardStatusStart) el.boardStatusStart.textContent = "Loading…";
+    try {
+      const top = await Board.getTop10();
+      cachedTop10 = top;
+      const label = statusHint || "Global Top 10";
+      renderBoardList(el.boardListStart, el.boardStatusStart, top, label);
+      renderBoardList(el.boardListEnd, el.boardStatusEnd, top, label);
+      return top;
+    } catch {
+      renderBoardList(el.boardListStart, el.boardStatusStart, [], "Could not load board");
+      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], "Could not load board");
+      return cachedTop10;
+    }
+  }
+
+  function showGameOverPanel() {
+    el.nameScreen.classList.add("hidden");
+    el.gameover.classList.remove("hidden");
+    el.hint.classList.add("hidden");
+    el.rescueChip.hidden = true;
+    refreshBoards();
+  }
+
+  function openNameEntry(finalScore) {
+    pendingBoardScore = finalScore;
+    el.gameover.classList.add("hidden");
+    el.nameScreen.classList.remove("hidden");
+    el.nameScore.textContent = String(finalScore);
+    el.nameError.hidden = true;
+    el.playerName.value = localStorage.getItem("tower_bloxx_player_name") || "";
+    setTimeout(() => el.playerName.focus(), 50);
+  }
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -457,11 +529,12 @@
     ensureAudio();
     el.start.classList.add("hidden");
     el.gameover.classList.add("hidden");
+    el.nameScreen.classList.add("hidden");
     el.hud.classList.remove("hidden");
     resetGame();
   }
 
-  function endGame() {
+  async function endGame() {
     state = "gameover";
     const prevBest = getBest();
     const isNew = score > prevBest;
@@ -485,9 +558,70 @@
       ? `Next theme "${nxt.name}" unlocks at ${nxt.at} floors.`
       : "All themes unlocked. Neon City is yours.";
 
-    el.gameover.classList.remove("hidden");
+    el.hud.classList.add("hidden");
     el.hint.classList.add("hidden");
     el.rescueChip.hidden = true;
+
+    const Board = window.TowerBloxxBoard;
+    let top = cachedTop10;
+    try {
+      if (Board) top = await Board.getTop10();
+    } catch {
+      /* keep cache */
+    }
+    cachedTop10 = top || [];
+
+    if (Board && Board.qualifies(score, cachedTop10)) {
+      openNameEntry(score);
+    } else {
+      showGameOverPanel();
+    }
+  }
+
+  async function saveBoardName() {
+    const Board = window.TowerBloxxBoard;
+    const raw = el.playerName.value;
+    const name = Board ? Board.normalizeName(raw) : String(raw || "").trim().slice(0, 10);
+    if (!name) {
+      el.nameError.textContent = "Please enter a name (max 10 characters).";
+      el.nameError.hidden = false;
+      return;
+    }
+    el.nameError.hidden = true;
+    el.btnSaveScore.disabled = true;
+    el.btnSaveScore.textContent = "Saving…";
+    localStorage.setItem("tower_bloxx_player_name", name);
+
+    let result = { ok: true, global: false };
+    try {
+      if (Board) result = await Board.submitScore(name, pendingBoardScore);
+    } catch {
+      result = { ok: false };
+    }
+
+    el.btnSaveScore.disabled = false;
+    el.btnSaveScore.textContent = "Save to Top 10";
+
+    if (!result.ok) {
+      el.nameError.textContent = "Could not save. Try again.";
+      el.nameError.hidden = false;
+      return;
+    }
+
+    if (result.top) {
+      cachedTop10 = result.top;
+      renderBoardList(
+        el.boardListEnd,
+        el.boardStatusEnd,
+        result.top,
+        result.global ? "Saved to Global Top 10" : "Saved on this device (global sync pending)"
+      );
+    } else {
+      await refreshBoards(result.global ? "Saved to Global Top 10" : "Saved on this device");
+    }
+
+    showBanner(result.global ? "On the Global Top 10!" : "Score saved!", 1000, true);
+    showGameOverPanel();
   }
 
   function addFloatText(x, y, text, color, scale = 1) {
@@ -1236,6 +1370,14 @@
 
   function onKey(e) {
     if (e.code === "Space" || e.code === "ArrowDown" || e.code === "Enter") {
+      if (state === "menu" && document.activeElement === el.playerName) return;
+      if (!el.nameScreen.classList.contains("hidden")) {
+        if (e.code === "Enter") {
+          e.preventDefault();
+          saveBoardName();
+        }
+        return;
+      }
       e.preventDefault();
       if (state === "menu" || state === "gameover") startGame();
       else onPointer();
@@ -1244,6 +1386,14 @@
 
   el.btnStart.addEventListener("click", startGame);
   el.btnRetry.addEventListener("click", startGame);
+  el.btnSaveScore.addEventListener("click", saveBoardName);
+  el.btnSkipScore.addEventListener("click", showGameOverPanel);
+  el.playerName.addEventListener("input", () => {
+    const max = (window.TowerBloxxBoard && window.TowerBloxxBoard.MAX_NAME) || 10;
+    if (el.playerName.value.length > max) {
+      el.playerName.value = el.playerName.value.slice(0, max);
+    }
+  });
   canvas.addEventListener("pointerdown", onPointer);
   window.addEventListener("keydown", onKey);
   window.addEventListener("resize", resize);
@@ -1268,5 +1418,6 @@
   const versionEl = document.getElementById("app-version");
   if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
   resize();
+  refreshBoards();
   requestAnimationFrame(loop);
 })();
