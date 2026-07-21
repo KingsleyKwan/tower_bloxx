@@ -127,6 +127,10 @@ body {
   box-shadow: 0 4px 12px var(--shadow);
 }
 
+.combo-wrap.pulse {
+  animation: comboPulse 0.45s ease;
+}
+
 .combo-bar {
   height: 100%;
   width: 0%;
@@ -144,6 +148,85 @@ body {
   letter-spacing: 0.08em;
   color: var(--ink);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.theme-chip,
+.rescue-chip {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 2px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: rgba(31, 42, 54, 0.72);
+  color: #fff;
+}
+
+.rescue-chip {
+  justify-self: end;
+  background: rgba(42, 157, 143, 0.92);
+}
+
+.rescue-chip.used {
+  background: rgba(90, 107, 122, 0.75);
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: rgba(196, 69, 54, 0.35);
+  opacity: 0;
+}
+
+.flash.on {
+  animation: flashRed 0.35s ease;
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  padding: 12px 22px;
+  border-radius: 14px;
+  background: rgba(31, 42, 54, 0.88);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+}
+
+.banner.celebrate {
+  background: linear-gradient(180deg, #e85d04, #c44a00);
+}
+
+@keyframes flashRed {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes comboPulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .hint {
@@ -253,7 +336,15 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 8px 0 22px;
+  margin: 8px 0 12px;
+}
+
+.stats-main {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.stats-extra {
+  margin-bottom: 16px;
 }
 
 .stats > div {
@@ -275,6 +366,39 @@ body {
 .stat-value {
   font-size: 1.35rem;
   font-weight: 900;
+}
+
+.go-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.go-title-row h1 {
+  margin-bottom: 0;
+}
+
+.new-badge {
+  display: inline-grid;
+  place-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e85d04, #c44a00);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  animation: comboPulse 0.8s ease infinite;
+}
+
+.themes-note {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--muted);
+  min-height: 1.2em;
 }
 
 .btn {

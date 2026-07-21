@@ -20,11 +20,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1.2.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.3.0" />
 </head>
 <body>
   <div id="app">
     <canvas id="game" aria-label="Tower Bloxx game canvas"></canvas>
+    <div id="flash" class="flash" hidden></div>
 
     <header id="hud" class="hidden" aria-live="polite">
       <div class="hud-block">
@@ -43,9 +44,12 @@
         <div id="combo-bar" class="combo-bar"></div>
         <span id="combo-text" class="combo-text">COMBO x1</span>
       </div>
+      <div id="theme-chip" class="theme-chip">Night City</div>
+      <div id="rescue-chip" class="rescue-chip" hidden>Rescue ready</div>
     </header>
 
     <div id="hint" class="hint hidden">Tap / Click to drop</div>
+    <div id="banner" class="banner hidden"></div>
 
     <section id="start-screen" class="overlay" role="dialog" aria-labelledby="start-title">
       <div class="panel">
@@ -55,38 +59,53 @@
         <ul class="howto">
           <li>Tap, click, or press Space to drop</li>
           <li>3 misses and the build is over</li>
-          <li>Higher floors and combos score more</li>
+          <li>Chase PERFECT combos and unlock new themes</li>
         </ul>
         <button id="btn-start" class="btn primary" type="button">Play</button>
         <p id="best-start" class="best-note"></p>
-        <p class="version" id="app-version">v1.2.0</p>
+        <p id="themes-start" class="themes-note"></p>
+        <p class="version" id="app-version">v1.3.0</p>
       </div>
     </section>
 
     <section id="gameover-screen" class="overlay hidden" role="dialog" aria-labelledby="gameover-title">
       <div class="panel">
         <p class="brand">Tower Bloxx</p>
-        <h1 id="gameover-title">Game Over</h1>
-        <p class="lede">Your tower couldn’t take another miss.</p>
-        <div class="stats">
+        <div class="go-title-row">
+          <h1 id="gameover-title">Game Over</h1>
+          <span id="new-badge" class="new-badge hidden">NEW</span>
+        </div>
+        <p class="lede" id="gameover-lede">Your tower couldn’t take another miss.</p>
+        <div class="stats stats-main">
           <div>
             <span class="stat-label">Population</span>
             <span id="final-score" class="stat-value">0</span>
-          </div>
-          <div>
-            <span class="stat-label">Floors</span>
-            <span id="final-floors" class="stat-value">0</span>
           </div>
           <div>
             <span class="stat-label">Best</span>
             <span id="final-best" class="stat-value">0</span>
           </div>
         </div>
+        <div class="stats stats-extra">
+          <div>
+            <span class="stat-label">Blocks</span>
+            <span id="final-floors" class="stat-value">0</span>
+          </div>
+          <div>
+            <span class="stat-label">Best Combo</span>
+            <span id="final-combo" class="stat-value">0</span>
+          </div>
+          <div>
+            <span class="stat-label">Accuracy</span>
+            <span id="final-accuracy" class="stat-value">0%</span>
+          </div>
+        </div>
+        <p id="theme-unlock-note" class="themes-note"></p>
         <button id="btn-retry" class="btn primary" type="button">Try Again</button>
       </div>
     </section>
   </div>
 
-  <script src="js/game.js?v=1.2.0"></script>
+  <script src="js/game.js?v=1.3.0"></script>
 </body>
 </html>
