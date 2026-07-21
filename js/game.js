@@ -1,9 +1,18 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.2";
+  const APP_VERSION = "1.5.0";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
+  const I18n = window.TowerBloxxI18n;
+
+  function t(key, vars) {
+    return I18n ? I18n.t(key, vars) : key;
+  }
+
+  function themeLabel(th) {
+    return I18n ? I18n.themeName(th.id) : th.name;
+  }
   const MAX_LIVES = 3;
   const BLOCK_H = 78;
   const BASE_W = 92;
@@ -60,6 +69,7 @@
     boardListEnd: document.getElementById("board-list-end"),
     boardStatusStart: document.getElementById("board-status-start"),
     boardStatusEnd: document.getElementById("board-status-end"),
+    langSwitch: document.getElementById("lang-switch"),
   };
 
   const FLOOR_PALETTES = [
@@ -184,7 +194,7 @@
     if (!entries || !entries.length) {
       const li = document.createElement("li");
       li.className = "empty";
-      li.textContent = "No scores yet — be the first!";
+      li.textContent = t("board.empty");
       listEl.appendChild(li);
       return;
     }
@@ -200,23 +210,39 @@
   async function refreshBoards(statusHint) {
     const Board = window.TowerBloxxBoard;
     if (!Board) {
-      renderBoardList(el.boardListStart, el.boardStatusStart, [], "Board unavailable");
-      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], "Board unavailable");
+      renderBoardList(el.boardListStart, el.boardStatusStart, [], t("board.unavailable"));
+      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], t("board.unavailable"));
       return [];
     }
-    if (el.boardStatusStart) el.boardStatusStart.textContent = "Loading…";
+    if (el.boardStatusStart) el.boardStatusStart.textContent = t("board.loading");
     try {
       const top = await Board.getTop10();
       cachedTop10 = top;
-      const label = statusHint || "Global Top 10";
+      const label = statusHint || t("board.global");
       renderBoardList(el.boardListStart, el.boardStatusStart, top, label);
       renderBoardList(el.boardListEnd, el.boardStatusEnd, top, label);
       return top;
     } catch {
-      renderBoardList(el.boardListStart, el.boardStatusStart, [], "Could not load board");
-      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], "Could not load board");
+      renderBoardList(el.boardListStart, el.boardStatusStart, [], t("board.loadFail"));
+      renderBoardList(el.boardListEnd, el.boardStatusEnd, [], t("board.loadFail"));
       return cachedTop10;
     }
+  }
+
+  function refreshStartNotes() {
+    best = getBest();
+    if (best > 0) el.bestStart.textContent = t("start.best", { n: best });
+    else el.bestStart.textContent = "";
+    const unlocked = unlockedThemeNames();
+    const nxt = nextTheme();
+    el.themesStart.textContent = nxt
+      ? t("start.themesNext", { list: unlocked.join(", "), n: nxt.at })
+      : t("start.themesAll", { list: unlocked.join(", ") });
+  }
+
+  function setLangSwitchVisible(visible) {
+    if (!el.langSwitch) return;
+    el.langSwitch.classList.toggle("hidden", !visible);
   }
 
   function showGameOverPanel() {
@@ -224,6 +250,7 @@
     el.gameover.classList.remove("hidden");
     el.hint.classList.add("hidden");
     el.rescueChip.hidden = true;
+    setLangSwitchVisible(true);
     refreshBoards();
   }
 
@@ -234,6 +261,7 @@
     el.nameScore.textContent = String(finalScore);
     el.nameError.hidden = true;
     el.playerName.value = localStorage.getItem("tower_bloxx_player_name") || "";
+    setLangSwitchVisible(true);
     setTimeout(() => el.playerName.focus(), 50);
   }
 
@@ -281,7 +309,7 @@
   }
 
   function unlockedThemeNames() {
-    return THEMES.filter((t) => themeBest >= t.at).map((t) => t.name);
+    return THEMES.filter((th) => themeBest >= th.at).map((th) => themeLabel(th));
   }
 
   function nextTheme() {
@@ -376,12 +404,12 @@
     el.score.textContent = String(score);
     el.floors.textContent = String(floors);
     renderLives();
-    el.themeChip.textContent = activeTheme.name;
+    el.themeChip.textContent = themeLabel(activeTheme);
 
     if (combo > 0 && comboMsLeft > 0) {
       el.comboWrap.hidden = false;
       el.comboBar.style.width = `${clamp(comboMsLeft / COMBO_MS, 0, 1) * 100}%`;
-      el.comboText.textContent = `COMBO x${combo}`;
+      el.comboText.textContent = t("hud.combo", { n: combo });
     } else {
       el.comboWrap.hidden = true;
     }
@@ -389,10 +417,10 @@
     if (floors >= RESCUE_FLOOR_UNLOCK) {
       el.rescueChip.hidden = false;
       if (rescueUsed) {
-        el.rescueChip.textContent = "Rescue used";
+        el.rescueChip.textContent = t("hud.rescueUsed");
         el.rescueChip.classList.add("used");
       } else {
-        el.rescueChip.textContent = "Rescue ready";
+        el.rescueChip.textContent = t("hud.rescueReady");
         el.rescueChip.classList.remove("used");
         rescueAvailable = true;
       }
@@ -449,12 +477,12 @@
       activeTheme = next;
       if (announce) {
         sfx("theme");
-        showBanner(`Theme: ${next.name}`, 1100, true);
+        showBanner(t("banner.theme", { name: themeLabel(next) }), 1100, true);
       }
     } else {
       activeTheme = next;
     }
-    el.themeChip.textContent = activeTheme.name;
+    el.themeChip.textContent = themeLabel(activeTheme);
   }
 
   function spawnCraneBlock() {
@@ -531,6 +559,7 @@
     el.gameover.classList.add("hidden");
     el.nameScreen.classList.add("hidden");
     el.hud.classList.remove("hidden");
+    setLangSwitchVisible(false);
     resetGame();
   }
 
@@ -549,18 +578,17 @@
     const accuracy = drops > 0 ? Math.round((hits / drops) * 100) : 0;
     el.finalAccuracy.textContent = `${accuracy}%`;
     el.newBadge.classList.toggle("hidden", !isNew);
-    el.gameoverLede.textContent = isNew
-      ? "New high population. The city grows with you."
-      : "Your tower couldn’t take another miss.";
+    el.gameoverLede.textContent = isNew ? t("go.ledeBest") : t("go.ledeMiss");
 
     const nxt = nextTheme();
     el.themeUnlockNote.textContent = nxt
-      ? `Next theme "${nxt.name}" unlocks at ${nxt.at} floors.`
-      : "All themes unlocked. Neon City is yours.";
+      ? t("go.themeNext", { name: themeLabel(nxt), n: nxt.at })
+      : t("go.themeAll");
 
     el.hud.classList.add("hidden");
     el.hint.classList.add("hidden");
     el.rescueChip.hidden = true;
+    setLangSwitchVisible(true);
 
     const Board = window.TowerBloxxBoard;
     let top = cachedTop10;
@@ -583,13 +611,13 @@
     const raw = el.playerName.value;
     const name = Board ? Board.normalizeName(raw) : String(raw || "").trim().slice(0, 10);
     if (!name) {
-      el.nameError.textContent = "Please enter a name (max 10 characters).";
+      el.nameError.textContent = t("name.needName");
       el.nameError.hidden = false;
       return;
     }
     el.nameError.hidden = true;
     el.btnSaveScore.disabled = true;
-    el.btnSaveScore.textContent = "Saving…";
+    el.btnSaveScore.textContent = t("name.saving");
     localStorage.setItem("tower_bloxx_player_name", name);
 
     let result = { ok: true, global: false };
@@ -600,10 +628,10 @@
     }
 
     el.btnSaveScore.disabled = false;
-    el.btnSaveScore.textContent = "Save to Top 10";
+    el.btnSaveScore.textContent = t("name.save");
 
     if (!result.ok) {
-      el.nameError.textContent = "Could not save. Try again.";
+      el.nameError.textContent = t("name.saveFail");
       el.nameError.hidden = false;
       return;
     }
@@ -614,13 +642,13 @@
         el.boardListEnd,
         el.boardStatusEnd,
         result.top,
-        result.global ? "Saved to Global Top 10" : "Saved on this device (global sync pending)"
+        result.global ? t("board.savedGlobal") : t("board.savedLocalPending")
       );
     } else {
-      await refreshBoards(result.global ? "Saved to Global Top 10" : "Saved on this device");
+      await refreshBoards(result.global ? t("board.savedGlobal") : t("board.savedLocal"));
     }
 
-    showBanner(result.global ? "On the Global Top 10!" : "Score saved!", 1000, true);
+    showBanner(result.global ? t("banner.top10") : t("banner.saved"), 1000, true);
     showGameOverPanel();
   }
 
@@ -652,7 +680,7 @@
       el.comboWrap.classList.remove("pulse");
       void el.comboWrap.offsetWidth;
       el.comboWrap.classList.add("pulse");
-      showBanner(`COMBO x${combo}`, 900, true);
+      showBanner(t("hud.combo", { n: combo }), 900, true);
       burst(W / 2, H * 0.35 + cameraY, "#ff9f1c", 28, 1.4);
       burst(W / 2, H * 0.35 + cameraY, "#ffe066", 18, 1.2);
     } else {
@@ -706,7 +734,7 @@
       comboMsLeft = COMBO_MS;
       bestCombo = Math.max(bestCombo, combo);
       points = Math.round(points * (1 + combo * 0.35));
-      addFloatText(block.x + block.w / 2, block.y, "PERFECT!", "#e85d04", 1.15);
+      addFloatText(block.x + block.w / 2, block.y, t("float.perfect"), "#e85d04", 1.15);
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ffe066", 22, 1.3);
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ffffff", 10, 0.9);
       addRing(block.x + block.w / 2, block.y + block.h / 2, "rgba(255, 214, 10, 0.9)");
@@ -769,8 +797,8 @@
       flashRed();
       setShake(14);
       burst(block.x + block.w / 2, block.y + block.h / 2, "#ff6b6b", 18);
-      addFloatText(W / 2, cameraY + H * 0.32, "CLOSE CALL", "#ffd6a5", 1.2);
-      showBanner("CLOSE CALL — rescued!", 1200);
+      addFloatText(W / 2, cameraY + H * 0.32, t("float.closeCall"), "#ffd6a5", 1.2);
+      showBanner(t("banner.rescue"), 1200);
       sfx("rescue");
       combo = 0;
       comboMsLeft = 0;
@@ -786,8 +814,8 @@
     setShake(16);
     flashRed();
     burst(block.x + block.w / 2, block.y + block.h / 2, block.palette.wall, 18);
-    addFloatText(W / 2, cameraY + H * 0.35, "MISS!", "#c44536", 1.2);
-    showBanner("MISS!", 700);
+    addFloatText(W / 2, cameraY + H * 0.35, t("float.miss"), "#c44536", 1.2);
+    showBanner(t("banner.miss"), 700);
     sfx("miss");
     combo = 0;
     comboMsLeft = 0;
@@ -817,7 +845,7 @@
       // Near-miss tension even when failing
       if (overlapRatio > 0.05 && overlapRatio < MIN_OVERLAP) {
         flashRed();
-        addFloatText(block.x + block.w / 2, block.y, "CLOSE!", "#c44536");
+        addFloatText(block.x + block.w / 2, block.y, t("float.close"), "#c44536");
       }
       missBlock(block);
       return;
@@ -1253,7 +1281,7 @@
     for (const f of floatTexts) {
       ctx.globalAlpha = clamp(f.life, 0, 1);
       ctx.fillStyle = f.color;
-      ctx.font = `900 ${Math.round(18 * (f.scale || 1))}px Nunito, sans-serif`;
+      ctx.font = `900 ${Math.round(18 * (f.scale || 1))}px Nunito, "PingFang HK", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
       ctx.fillText(f.text, f.x, f.y - cameraY);
     }
     ctx.globalAlpha = 1;
@@ -1429,12 +1457,27 @@
 
   best = getBest();
   themeBest = Math.max(Number(localStorage.getItem(THEME_KEY) || 0), 0);
-  if (best > 0) el.bestStart.textContent = `Best population: ${best}`;
-  const unlocked = unlockedThemeNames();
-  const nxt = nextTheme();
-  el.themesStart.textContent = nxt
-    ? `Themes: ${unlocked.join(", ")} · next at ${nxt.at} floors`
-    : `Themes unlocked: ${unlocked.join(", ")}`;
+
+  if (I18n) {
+    I18n.wireToggle();
+    I18n.applyStatic();
+    I18n.onChange(() => {
+      refreshStartNotes();
+      if (state === "playing" || state === "dropping") updateHud();
+      if (!el.gameover.classList.contains("hidden")) {
+        const isNew = !el.newBadge.classList.contains("hidden");
+        el.gameoverLede.textContent = isNew ? t("go.ledeBest") : t("go.ledeMiss");
+        const nxtTheme = nextTheme();
+        el.themeUnlockNote.textContent = nxtTheme
+          ? t("go.themeNext", { name: themeLabel(nxtTheme), n: nxtTheme.at })
+          : t("go.themeAll");
+      }
+      if (state !== "playing" && state !== "dropping") refreshBoards();
+    });
+  }
+
+  refreshStartNotes();
+  setLangSwitchVisible(true);
 
   const versionEl = document.getElementById("app-version");
   if (versionEl) versionEl.textContent = `v${APP_VERSION}`;

@@ -20,25 +20,30 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1.4.2" />
+  <link rel="stylesheet" href="css/style.css?v=1.5.0" />
 </head>
 <body>
   <div id="app">
-    <canvas id="game" aria-label="Tower Bloxx game canvas"></canvas>
+    <canvas id="game" data-i18n-aria="meta.canvas" aria-label="Tower Bloxx game canvas"></canvas>
     <div id="flash" class="flash" hidden></div>
+
+    <div id="lang-switch" class="lang-switch" role="group" data-i18n-aria="lang.aria" aria-label="Language">
+      <button type="button" data-lang="en" data-i18n="lang.en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="zh-HK" data-i18n="lang.zh" aria-pressed="false">香港中文</button>
+    </div>
 
     <header id="hud" class="hidden" aria-live="polite">
       <div class="hud-block">
-        <span class="hud-label">Population</span>
+        <span class="hud-label" data-i18n="hud.population">Population</span>
         <span id="score" class="hud-value">0</span>
       </div>
       <div class="hud-block hud-center">
-        <span class="hud-label">Floors</span>
+        <span class="hud-label" data-i18n="hud.floors">Floors</span>
         <span id="floors" class="hud-value">0</span>
       </div>
       <div class="hud-block hud-right">
-        <span class="hud-label">Lives</span>
-        <div id="lives" class="lives" aria-label="Lives remaining"></div>
+        <span class="hud-label" data-i18n="hud.lives">Lives</span>
+        <div id="lives" class="lives" data-i18n-aria="hud.livesAria" aria-label="Lives remaining"></div>
       </div>
       <div id="combo-wrap" class="combo-wrap" hidden>
         <div id="combo-bar" class="combo-bar"></div>
@@ -48,30 +53,30 @@
       <div id="rescue-chip" class="rescue-chip" hidden>Rescue ready</div>
     </header>
 
-    <div id="hint" class="hint hidden">Tap / Click to drop</div>
+    <div id="hint" class="hint hidden" data-i18n="hint.drop">Tap / Click to drop</div>
     <div id="banner" class="banner hidden"></div>
 
     <section id="start-screen" class="overlay" role="dialog" aria-labelledby="start-title">
       <div class="panel panel-scroll">
         <p class="brand">Tower Bloxx</p>
-        <h1 id="start-title">Build the tallest tower</h1>
-        <p class="lede">A crane swings each floor. Drop it onto the stack. Perfect landings fill your combo and pack in more residents.</p>
+        <h1 id="start-title" data-i18n="start.title">Build the tallest tower</h1>
+        <p class="lede" data-i18n="start.lede">A crane swings each floor. Drop it onto the stack. Perfect landings fill your combo and pack in more residents.</p>
         <ul class="howto">
-          <li>Tap, click, or press Space to drop</li>
-          <li>3 misses and the build is over</li>
-          <li>Chase PERFECT combos and unlock new themes</li>
+          <li data-i18n="start.how1">Tap, click, or press Space to drop</li>
+          <li data-i18n="start.how2">3 misses and the build is over</li>
+          <li data-i18n="start.how3">Chase PERFECT combos and unlock new themes</li>
         </ul>
-        <button id="btn-start" class="btn primary" type="button">Play</button>
+        <button id="btn-start" class="btn primary" type="button" data-i18n="start.play">Play</button>
         <p id="best-start" class="best-note"></p>
         <p id="themes-start" class="themes-note"></p>
 
         <div class="board-block">
-          <h2 class="board-title">Top 10</h2>
-          <p id="board-status-start" class="board-status">Loading…</p>
+          <h2 class="board-title" data-i18n="board.title">Top 10</h2>
+          <p id="board-status-start" class="board-status" data-i18n="board.loading">Loading…</p>
           <ol id="board-list-start" class="board-list"></ol>
         </div>
 
-        <p class="version" id="app-version">v1.4.2</p>
+        <p class="version" id="app-version">v1.5.0</p>
       </div>
     </section>
 
@@ -79,53 +84,53 @@
       <div class="panel panel-scroll">
         <p class="brand">Tower Bloxx</p>
         <div class="go-title-row">
-          <h1 id="gameover-title">Game Over</h1>
-          <span id="new-badge" class="new-badge hidden">NEW</span>
+          <h1 id="gameover-title" data-i18n="go.title">Game Over</h1>
+          <span id="new-badge" class="new-badge hidden" data-i18n="go.new">NEW</span>
         </div>
-        <p class="lede" id="gameover-lede">Your tower couldn’t take another miss.</p>
+        <p class="lede" id="gameover-lede" data-i18n="go.ledeMiss">Your tower couldn’t take another miss.</p>
         <div class="stats stats-main">
           <div>
-            <span class="stat-label">Population</span>
+            <span class="stat-label" data-i18n="go.population">Population</span>
             <span id="final-score" class="stat-value">0</span>
           </div>
           <div>
-            <span class="stat-label">Best</span>
+            <span class="stat-label" data-i18n="go.best">Best</span>
             <span id="final-best" class="stat-value">0</span>
           </div>
         </div>
         <div class="stats stats-extra">
           <div>
-            <span class="stat-label">Blocks</span>
+            <span class="stat-label" data-i18n="go.blocks">Blocks</span>
             <span id="final-floors" class="stat-value">0</span>
           </div>
           <div>
-            <span class="stat-label">Best Combo</span>
+            <span class="stat-label" data-i18n="go.bestCombo">Best Combo</span>
             <span id="final-combo" class="stat-value">0</span>
           </div>
           <div>
-            <span class="stat-label">Accuracy</span>
+            <span class="stat-label" data-i18n="go.accuracy">Accuracy</span>
             <span id="final-accuracy" class="stat-value">0%</span>
           </div>
         </div>
         <p id="theme-unlock-note" class="themes-note"></p>
 
         <div class="board-block">
-          <h2 class="board-title">Top 10</h2>
+          <h2 class="board-title" data-i18n="board.title">Top 10</h2>
           <p id="board-status-end" class="board-status"></p>
           <ol id="board-list-end" class="board-list"></ol>
         </div>
 
-        <button id="btn-retry" class="btn primary" type="button">Try Again</button>
+        <button id="btn-retry" class="btn primary" type="button" data-i18n="go.retry">Try Again</button>
       </div>
     </section>
 
     <section id="name-screen" class="overlay hidden" role="dialog" aria-labelledby="name-title">
       <div class="panel">
         <p class="brand">Tower Bloxx</p>
-        <h1 id="name-title">Top 10!</h1>
-        <p class="lede">Your population made the board. Enter a name (max 10 characters, Chinese OK).</p>
+        <h1 id="name-title" data-i18n="name.title">Top 10!</h1>
+        <p class="lede" data-i18n="name.lede">Your population made the board. Enter a name (max 10 characters, Chinese OK).</p>
         <p id="name-score" class="name-score">0</p>
-        <label class="name-label" for="player-name">Name</label>
+        <label class="name-label" for="player-name" data-i18n="name.label">Name</label>
         <input
           id="player-name"
           class="name-input"
@@ -137,19 +142,21 @@
           autocapitalize="off"
           spellcheck="false"
           inputmode="text"
-          placeholder="你的名字 / Name"
+          data-i18n-placeholder="name.placeholder"
+          placeholder="你的名字"
         />
         <p id="name-error" class="name-error" hidden></p>
         <div class="name-actions">
-          <button id="btn-save-score" class="btn primary" type="button">Save to Top 10</button>
-          <button id="btn-skip-score" class="btn ghost" type="button">Skip</button>
+          <button id="btn-save-score" class="btn primary" type="button" data-i18n="name.save">Save to Top 10</button>
+          <button id="btn-skip-score" class="btn ghost" type="button" data-i18n="name.skip">Skip</button>
         </div>
       </div>
     </section>
   </div>
 
-  <script src="js/leaderboard-config.js?v=1.4.2"></script>
-  <script src="js/leaderboard.js?v=1.4.2"></script>
-  <script src="js/game.js?v=1.4.2"></script>
+  <script src="js/i18n.js?v=1.5.0"></script>
+  <script src="js/leaderboard-config.js?v=1.5.0"></script>
+  <script src="js/leaderboard.js?v=1.5.0"></script>
+  <script src="js/game.js?v=1.5.0"></script>
 </body>
 </html>
