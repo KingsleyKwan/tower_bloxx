@@ -7,12 +7,21 @@
   const TOP_N = cfg.topN || 10;
   const MAX_NAME = cfg.maxNameLen || 10;
 
+  // Letters (incl. Chinese), numbers, spaces, hyphen, underscore — max MAX_NAME characters
   function normalizeName(name) {
-    return String(name || "")
-      .replace(/[^\w\s\-]/g, "")
+    const cleaned = String(name || "")
+      .replace(/[^\p{L}\p{N}\s\-_]/gu, "")
       .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, MAX_NAME);
+      .trim();
+    return Array.from(cleaned).slice(0, MAX_NAME).join("");
+  }
+
+  function nameKey(name) {
+    return normalizeName(name).toLocaleLowerCase();
+  }
+
+  function charLen(str) {
+    return Array.from(String(str || "")).length;
   }
 
   function readLocal() {
@@ -34,9 +43,10 @@
       const name = normalizeName(e.name);
       const score = Number(e.score) || 0;
       if (!name || score <= 0) continue;
-      const prev = map.get(name.toLowerCase());
+      const key = nameKey(name);
+      const prev = map.get(key);
       if (!prev || score > prev.score) {
-        map.set(name.toLowerCase(), {
+        map.set(key, {
           name,
           score,
           ts: e.ts || Date.now(),
@@ -87,9 +97,7 @@
 
     try {
       const remote = await fetchRemote();
-      const existing = remote.find(
-        (e) => normalizeName(e.name).toLowerCase() === name.toLowerCase()
-      );
+      const existing = remote.find((e) => nameKey(e.name) === nameKey(name));
       const payload = { name, score: s, ts: Date.now() };
 
       if (existing && existing._id) {
@@ -124,6 +132,7 @@
     qualifies,
     submitScore,
     normalizeName,
+    charLen,
     MAX_NAME,
     TOP_N,
   };

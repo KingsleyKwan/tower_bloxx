@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1.4.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.4.1" />
 </head>
 <body>
   <div id="app">
@@ -71,7 +71,7 @@
           <ol id="board-list-start" class="board-list"></ol>
         </div>
 
-        <p class="version" id="app-version">v1.4.0</p>
+        <p class="version" id="app-version">v1.4.1</p>
       </div>
     </section>
 
@@ -123,18 +123,21 @@
       <div class="panel">
         <p class="brand">Tower Bloxx</p>
         <h1 id="name-title">Top 10!</h1>
-        <p class="lede">Your population made the board. Enter a name (max 10 characters).</p>
+        <p class="lede">Your population made the board. Enter a name (max 10 characters, Chinese OK).</p>
         <p id="name-score" class="name-score">0</p>
         <label class="name-label" for="player-name">Name</label>
         <input
           id="player-name"
           class="name-input"
           type="text"
-          maxlength="10"
+          maxlength="20"
+          lang="zh-Hant"
           autocomplete="off"
           autocorrect="off"
+          autocapitalize="off"
           spellcheck="false"
-          placeholder="Your name"
+          inputmode="text"
+          placeholder="你的名字 / Name"
         />
         <p id="name-error" class="name-error" hidden></p>
         <div class="name-actions">
@@ -145,8 +148,8 @@
     </section>
   </div>
 
-  <script src="js/leaderboard-config.js?v=1.4.0"></script>
-  <script src="js/leaderboard.js?v=1.4.0"></script>
-  <script src="js/game.js?v=1.4.0"></script>
+  <script src="js/leaderboard-config.js?v=1.4.1"></script>
+  <script src="js/leaderboard.js?v=1.4.1"></script>
+  <script src="js/game.js?v=1.4.1"></script>
 </body>
 </html>

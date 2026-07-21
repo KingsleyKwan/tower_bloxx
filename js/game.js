@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.0";
+  const APP_VERSION = "1.4.1";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const MAX_LIVES = 3;
@@ -1388,11 +1388,28 @@
   el.btnRetry.addEventListener("click", startGame);
   el.btnSaveScore.addEventListener("click", saveBoardName);
   el.btnSkipScore.addEventListener("click", showGameOverPanel);
-  el.playerName.addEventListener("input", () => {
-    const max = (window.TowerBloxxBoard && window.TowerBloxxBoard.MAX_NAME) || 10;
-    if (el.playerName.value.length > max) {
-      el.playerName.value = el.playerName.value.slice(0, max);
+
+  // Allow Chinese IME: do not truncate while composing
+  let nameComposing = false;
+  el.playerName.addEventListener("compositionstart", () => {
+    nameComposing = true;
+  });
+  el.playerName.addEventListener("compositionend", () => {
+    nameComposing = false;
+    const Board = window.TowerBloxxBoard;
+    const max = (Board && Board.MAX_NAME) || 10;
+    const clipped = Board ? Board.normalizeName(el.playerName.value) : el.playerName.value;
+    if (Board && Board.charLen(el.playerName.value) > max) {
+      el.playerName.value = clipped;
+    } else if (Board) {
+      el.playerName.value = clipped;
     }
+  });
+  el.playerName.addEventListener("input", () => {
+    if (nameComposing) return;
+    const Board = window.TowerBloxxBoard;
+    if (!Board) return;
+    el.playerName.value = Board.normalizeName(el.playerName.value);
   });
   canvas.addEventListener("pointerdown", onPointer);
   window.addEventListener("keydown", onKey);
