@@ -3,3 +3,7 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+*.jpeg
+*.png
+!assets/**/*.png
+!assets/**/*.jpeg

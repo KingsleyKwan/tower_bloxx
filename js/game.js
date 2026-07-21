@@ -1,10 +1,12 @@
 (() => {
   "use strict";
 
+  const APP_VERSION = "1.1.0";
   const STORAGE_KEY = "tower_bloxx_best";
   const MAX_LIVES = 3;
-  const BLOCK_H = 42;
-  const BASE_W = 160;
+  // Chunky cube floors (classic Tower Bloxx), not long thin slabs
+  const BLOCK_H = 78;
+  const BASE_W = 92;
   const MIN_OVERLAP = 0.28;
   const PERFECT_TOL = 6;
   const COMBO_MS = 2800;
@@ -31,14 +33,21 @@
     bestStart: document.getElementById("best-start"),
   };
 
+  // Classic Tower Bloxx: cyan body + gold bands (slight shade shifts per floor)
   const FLOOR_PALETTES = [
-    { wall: "#e76f51", trim: "#c44536", window: "#ffe066" },
-    { wall: "#f4a261", trim: "#e76f51", window: "#fff3b0" },
-    { wall: "#2a9d8f", trim: "#1d7a6f", window: "#caf0f8" },
-    { wall: "#457b9d", trim: "#1d3557", window: "#a8dadc" },
-    { wall: "#e9c46a", trim: "#c9a227", window: "#fff8e7" },
-    { wall: "#9b5de5", trim: "#7b2cbf", window: "#e0aaff" },
+    { wall: "#3ec6d8", wallDeep: "#2aa8bc", band: "#e8c84a", bandDeep: "#d4a82e", rivet: "#f0d35c" },
+    { wall: "#36bfd4", wallDeep: "#249ab0", band: "#ebcc52", bandDeep: "#d6ab32", rivet: "#f3d866" },
+    { wall: "#45cddc", wallDeep: "#2fb0c4", band: "#e6c446", bandDeep: "#d0a528", rivet: "#eed058" },
+    { wall: "#2ebfd0", wallDeep: "#1f9aab", band: "#eacb4e", bandDeep: "#d5a930", rivet: "#f1d560" },
   ];
+
+  const BASE_PALETTE = {
+    wall: "#7a8794",
+    wallDeep: "#5c6772",
+    band: "#c5a35a",
+    bandDeep: "#a8843e",
+    rivet: "#d4b56a",
+  };
 
   let W = 0;
   let H = 0;
@@ -61,6 +70,7 @@
   let shake = 0;
   let groundY = 0;
   let swingPhase = 0;
+  let swingAnchorX = 0;
   let showHint = true;
 
   function resize() {
@@ -136,15 +146,19 @@
     const top = topBlock();
     const width = top ? top.w : BASE_W;
     const palette = FLOOR_PALETTES[floors % FLOOR_PALETTES.length];
+    if (!Number.isFinite(swingAnchorX) || swingAnchorX === 0) {
+      swingAnchorX = top.x + top.w / 2;
+    }
+    const amp = swingAmplitude();
     crane = {
       w: width,
       h: BLOCK_H,
-      x: W / 2,
-      y: 0,
+      // Continue from current swing phase (no reset jump)
+      x: swingAnchorX + Math.sin(swingPhase) * amp,
+      y: 78,
       palette,
       angle: 0,
     };
-    swingPhase = Math.random() > 0.5 ? 0 : Math.PI;
     state = "playing";
   }
 
@@ -161,19 +175,22 @@
     particles = [];
     floatTexts = [];
     shake = 0;
+    swingPhase = 0;
+    swingAnchorX = 0;
     showHint = true;
     el.hint.classList.remove("hidden");
 
-    const foundationW = Math.min(BASE_W, W * 0.42);
+    const foundationW = Math.min(BASE_W, W * 0.28);
     tower.push({
       x: W / 2 - foundationW / 2,
       y: groundY - BLOCK_H,
       w: foundationW,
       h: BLOCK_H,
-      palette: { wall: "#6c757d", trim: "#495057", window: "#dee2e6" },
+      palette: BASE_PALETTE,
       isBase: true,
     });
 
+    swingAnchorX = W / 2;
     spawnCraneBlock();
     updateHud();
   }
@@ -230,6 +247,7 @@
       w: crane.w,
       h: crane.h,
       vy: 0,
+      tilt: Math.sin(swingPhase) * 0.14,
       palette: crane.palette,
       targetY: top.y - crane.h,
     };
@@ -273,8 +291,11 @@
     // Soft lean: if offset large, nudge visual sway via camera shake
     shake = perfect ? 4 : 8 + Math.abs(offset) * 0.08;
 
-    const desiredCam = Math.max(0, groundY - (top.y - BLOCK_H * 4) - H * 0.35);
-    targetCameraY = Math.max(targetCameraY, desiredCam);
+    // Follow tower upward only once the top rises past the focus line.
+    // (y grows downward, so camera decreases into negative values as we scroll up.)
+    const FOCUS_SCREEN_Y = 170;
+    const peak = topBlock();
+    targetCameraY = Math.min(targetCameraY, peak.y - FOCUS_SCREEN_Y);
 
     falling = null;
     updateHud();
@@ -323,20 +344,28 @@
     // Combo bar tick
     if (state === "playing" || state === "dropping") updateHud();
 
-    if (state === "playing" && crane) {
+    // Keep swing momentum running even while a block is falling
+    if (state === "playing" || state === "dropping") {
       swingPhase += dt * swingSpeed();
+    }
+
+    if (state === "playing" && crane) {
       const amp = swingAmplitude();
       const top = topBlock();
-      const center = top.x + top.w / 2;
-      crane.x = center + Math.sin(swingPhase) * amp;
+      const targetCenter = top.x + top.w / 2;
+      // Ease anchor toward tower top so off-center landings don't teleport the wire
+      swingAnchorX += (targetCenter - swingAnchorX) * Math.min(1, dt * 3);
+      crane.x = swingAnchorX + Math.sin(swingPhase) * amp;
       crane.y = 78;
     }
 
     if (state === "dropping" && falling) {
       falling.vy += 2200 * dt;
       falling.y += falling.vy * dt;
+      falling.tilt *= Math.max(0, 1 - dt * 3);
       if (falling.y >= falling.targetY) {
         falling.y = falling.targetY;
+        falling.tilt = 0;
         resolveLanding(falling);
       }
     }
@@ -406,49 +435,155 @@
     }
   }
 
-  function drawBlock(b, screenY) {
+  function roundRectPath(x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  }
+
+  function drawWindow(wx, wy, ww, wh) {
+    // Frame
+    ctx.fillStyle = "#6b3a28";
+    roundRectPath(wx - 2, wy - 2, ww + 4, wh + 4, 3);
+    ctx.fill();
+
+    // Glass
+    const g = ctx.createLinearGradient(wx, wy, wx + ww, wy + wh);
+    g.addColorStop(0, "#5a7a9a");
+    g.addColorStop(0.45, "#8eb4d4");
+    g.addColorStop(1, "#3d5a78");
+    ctx.fillStyle = g;
+    roundRectPath(wx, wy, ww, wh, 2);
+    ctx.fill();
+
+    // Shine streaks
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(wx + ww * 0.25, wy + wh * 0.2);
+    ctx.lineTo(wx + ww * 0.45, wy + wh * 0.75);
+    ctx.moveTo(wx + ww * 0.42, wy + wh * 0.18);
+    ctx.lineTo(wx + ww * 0.62, wy + wh * 0.72);
+    ctx.stroke();
+  }
+
+  function drawRivet(cx, cy, r) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#f0d35c";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.25, cy - r * 0.25, r * 0.35, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(160,120,30,0.45)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawBlock(b, screenY, angle = 0) {
     const { x, w, h, palette } = b;
     const y = screenY;
+    const band = Math.max(10, Math.round(h * 0.16));
+    const radius = Math.max(8, Math.round(w * 0.1));
 
-    // Shadow
-    ctx.fillStyle = "rgba(0,0,0,0.12)";
-    ctx.fillRect(x + 3, y + h - 2, w, 6);
-
-    // Body
-    ctx.fillStyle = palette.wall;
-    ctx.fillRect(x, y, w, h);
-
-    // Side depth
-    ctx.fillStyle = palette.trim;
-    ctx.fillRect(x, y, 6, h);
-    ctx.fillRect(x, y + h - 5, w, 5);
-
-    // Roof ledge
-    ctx.fillStyle = palette.trim;
-    ctx.fillRect(x - 2, y, w + 4, 6);
-
-    // Windows
-    const cols = Math.max(2, Math.floor(w / 28));
-    const winW = 10;
-    const winH = 14;
-    const gapX = (w - cols * winW) / (cols + 1);
-    const gapY = (h - 8 - winH) / 2;
-    ctx.fillStyle = palette.window;
-    for (let c = 0; c < cols; c++) {
-      const wx = x + gapX + c * (winW + gapX);
-      const wy = y + 6 + gapY;
-      ctx.fillRect(wx, wy, winW, winH);
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.fillRect(wx, wy, winW, 3);
-      ctx.fillStyle = palette.window;
+    ctx.save();
+    if (angle) {
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(angle);
+      ctx.translate(-(x + w / 2), -(y + h / 2));
     }
 
-    if (b.isBase) {
-      ctx.fillStyle = "#adb5bd";
-      ctx.fillRect(x + 8, y + h * 0.35, w - 16, h * 0.45);
-      ctx.fillStyle = "#868e96";
-      ctx.fillRect(x + w / 2 - 8, y + h * 0.4, 16, h * 0.4);
+    // Soft drop shadow
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
+    roundRectPath(x + 4, y + 6, w, h, radius);
+    ctx.fill();
+
+    // Main cyan body
+    roundRectPath(x, y, w, h, radius);
+    const bodyGrad = ctx.createLinearGradient(x, y, x + w, y);
+    bodyGrad.addColorStop(0, palette.wallDeep);
+    bodyGrad.addColorStop(0.18, palette.wall);
+    bodyGrad.addColorStop(0.82, palette.wall);
+    bodyGrad.addColorStop(1, palette.wallDeep);
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+
+    // Top gold band
+    ctx.save();
+    roundRectPath(x, y, w, h, radius);
+    ctx.clip();
+    const topBand = ctx.createLinearGradient(x, y, x, y + band);
+    topBand.addColorStop(0, "#f3dc6a");
+    topBand.addColorStop(0.55, palette.band);
+    topBand.addColorStop(1, palette.bandDeep);
+    ctx.fillStyle = topBand;
+    ctx.fillRect(x, y, w, band);
+
+    // Bottom gold band
+    const botBand = ctx.createLinearGradient(x, y + h - band, x, y + h);
+    botBand.addColorStop(0, palette.band);
+    botBand.addColorStop(1, palette.bandDeep);
+    ctx.fillStyle = botBand;
+    ctx.fillRect(x, y + h - band, w, band);
+    ctx.restore();
+
+    // Bevel highlight on left / top edge of body
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + radius * 0.4, y + band + 4);
+    ctx.lineTo(x + radius * 0.4, y + h - band - 4);
+    ctx.stroke();
+
+    // Outer outline
+    roundRectPath(x, y, w, h, radius);
+    ctx.strokeStyle = "rgba(30, 90, 100, 0.35)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Two classic side-by-side windows
+    if (!b.isBase) {
+      const winW = w * 0.22;
+      const winH = h * 0.36;
+      const winY = y + (h - winH) / 2;
+      const gap = w * 0.08;
+      const pairW = winW * 2 + gap;
+      const winX0 = x + (w - pairW) / 2;
+      drawWindow(winX0, winY, winW, winH);
+      drawWindow(winX0 + winW + gap, winY, winW, winH);
+    } else {
+      // Simple door on foundation
+      const doorW = w * 0.28;
+      const doorH = h * 0.42;
+      const doorX = x + (w - doorW) / 2;
+      const doorY = y + h - band - doorH + 2;
+      ctx.fillStyle = "#5c6772";
+      roundRectPath(doorX, doorY, doorW, doorH, 4);
+      ctx.fill();
+      ctx.fillStyle = "#f0d35c";
+      ctx.beginPath();
+      ctx.arc(doorX + doorW * 0.72, doorY + doorH * 0.55, 2.5, 0, Math.PI * 2);
+      ctx.fill();
     }
+
+    // Four corner rivets (classic Tower Bloxx studs)
+    const rr = Math.max(3.5, w * 0.055);
+    const inset = Math.max(10, w * 0.12);
+    drawRivet(x + inset, y + inset, rr);
+    drawRivet(x + w - inset, y + inset, rr);
+    drawRivet(x + inset, y + h - inset, rr);
+    drawRivet(x + w - inset, y + h - inset, rr);
+
+    ctx.restore();
   }
 
   function drawCrane() {
@@ -456,33 +591,30 @@
     const cx = crane.x;
     const topY = 18;
     const blockY = crane.y;
+    const tilt = Math.sin(swingPhase) * 0.14;
 
-    // Boom
-    ctx.strokeStyle = "#f4a261";
-    ctx.lineWidth = 6;
+    // Thin boom cable rail
+    ctx.strokeStyle = "#c9a227";
+    ctx.lineWidth = 4;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(W * 0.08, topY + 10);
-    ctx.lineTo(W * 0.92, topY + 10);
+    ctx.moveTo(W * 0.12, topY + 8);
+    ctx.lineTo(W * 0.88, topY + 8);
     ctx.stroke();
 
-    // Cabin
-    ctx.fillStyle = "#e76f51";
-    ctx.fillRect(W * 0.08 - 18, topY - 4, 36, 28);
-    ctx.fillStyle = "#264653";
-    ctx.fillRect(W * 0.08 - 10, topY + 2, 14, 12);
-
     // Cable
-    ctx.strokeStyle = "#495057";
+    ctx.strokeStyle = "#6c757d";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx, topY + 10);
-    ctx.lineTo(cx, blockY);
+    ctx.moveTo(cx, topY + 8);
+    ctx.lineTo(cx, blockY + 4);
     ctx.stroke();
 
     // Hook
-    ctx.fillStyle = "#343a40";
-    ctx.fillRect(cx - 6, blockY - 6, 12, 8);
+    ctx.fillStyle = "#495057";
+    ctx.beginPath();
+    ctx.arc(cx, blockY + 2, 5, 0, Math.PI * 2);
+    ctx.fill();
 
     drawBlock(
       {
@@ -491,7 +623,8 @@
         h: crane.h,
         palette: crane.palette,
       },
-      blockY
+      blockY,
+      tilt
     );
   }
 
@@ -529,7 +662,7 @@
     }
 
     if (falling) {
-      drawBlock(falling, falling.y - cameraY);
+      drawBlock(falling, falling.y - cameraY, falling.tilt || 0);
     }
 
     drawCrane();
@@ -542,13 +675,13 @@
   function drawMenuBackdrop() {
     drawSky();
     drawGround();
-    const previewW = Math.min(BASE_W, W * 0.42);
+    const previewW = Math.min(BASE_W, W * 0.28);
     drawBlock(
       {
         x: W / 2 - previewW / 2,
         w: previewW,
         h: BLOCK_H,
-        palette: { wall: "#6c757d", trim: "#495057", window: "#dee2e6" },
+        palette: BASE_PALETTE,
         isBase: true,
       },
       groundY - BLOCK_H
@@ -558,7 +691,8 @@
     const amp = Math.min(W * 0.28, 120);
     const cx = W / 2 + Math.sin(performance.now() / 700) * amp;
     const by = 90;
-    ctx.strokeStyle = "#495057";
+    const tilt = Math.sin(performance.now() / 700) * 0.14;
+    ctx.strokeStyle = "#6c757d";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(cx, 28);
@@ -571,7 +705,8 @@
         h: BLOCK_H,
         palette: FLOOR_PALETTES[0],
       },
-      by
+      by,
+      tilt
     );
   }
 
@@ -621,6 +756,8 @@
 
   best = getBest();
   if (best > 0) el.bestStart.textContent = `Best population: ${best}`;
+  const versionEl = document.getElementById("app-version");
+  if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
   resize();
   requestAnimationFrame(loop);
 })();
