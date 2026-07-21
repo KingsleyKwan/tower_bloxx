@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.3.2";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const MAX_LIVES = 3;
@@ -17,6 +17,8 @@
   const MAX_TOWER_SWAY = 34;
   const MAX_COMBO = 99;
   const RESCUE_FLOOR_UNLOCK = 3;
+  const MIN_VIEW_SCALE = 0.68;
+  const VIEW_EDGE_PAD = 28;
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -139,6 +141,8 @@
   let hits = 0;
   let cameraY = 0;
   let targetCameraY = 0;
+  let viewScale = 1;
+  let targetViewScale = 1;
   let tower = [];
   let crane = null;
   let falling = null;
@@ -159,7 +163,7 @@
   let activeTheme = THEMES[0];
   let bannerTimer = 0;
   let audioCtx = null;
-  let squash = null; // { index, t, dur }
+  let squash = null; // whole-tower settle pulse { t, dur }
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -348,14 +352,14 @@
     swayAmp = clamp(heightAmp + leanAmp, 0, MAX_TOWER_SWAY);
   }
 
-  function blockSwayX(index) {
+  // Rigid building sway: one offset for the entire tower (floors stay locked together)
+  function towerSwayX() {
     if (tower.length <= 1 || swayAmp <= 0) return 0;
-    const t = index / (tower.length - 1);
-    return Math.sin(swayPhase) * swayAmp * t * t;
+    return Math.sin(swayPhase) * swayAmp;
   }
 
   function topSwayX() {
-    return blockSwayX(tower.length - 1);
+    return towerSwayX();
   }
 
   function topCenterX() {
@@ -411,6 +415,8 @@
     hits = 0;
     cameraY = 0;
     targetCameraY = 0;
+    viewScale = 1;
+    targetViewScale = 1;
     tower = [];
     falling = null;
     particles = [];
@@ -602,7 +608,7 @@
       h: block.h,
       palette: block.palette,
     });
-    squash = { index: tower.length - 1, t: 0, dur: 0.28 };
+    squash = { t: 0, dur: 0.18 };
 
     instability += Math.abs(offset) * 0.35 + (perfect ? 0 : 4);
     instability = Math.max(0, instability - (perfect ? 3 : 0));
@@ -686,8 +692,52 @@
     placeBlock(block, overlapRatio, offset);
   }
 
+  function zoomOriginY() {
+    return Math.max(FOCUS_SCREEN_Y, craneHangY() + BLOCK_H + DROP_GAP * 0.45);
+  }
+
+  // Scale needed so [left,right] stays inside the screen after zoom-about-center-X
+  function scaleToFitX(left, right) {
+    const ox = W / 2;
+    let s = 1;
+    if (left < VIEW_EDGE_PAD) {
+      // ox + (left - ox) * s >= pad  →  s <= (pad - ox) / (left - ox) when left < ox
+      const den = left - ox;
+      if (den < 0) s = Math.min(s, (VIEW_EDGE_PAD - ox) / den);
+    }
+    if (right > W - VIEW_EDGE_PAD) {
+      const den = right - ox;
+      if (den > 0) s = Math.min(s, (W - VIEW_EDGE_PAD - ox) / den);
+    }
+    return clamp(s, MIN_VIEW_SCALE, 1);
+  }
+
+  function updateViewScale() {
+    if (!tower.length) {
+      targetViewScale = 1;
+      return;
+    }
+    // Fit the whole rigid tower (shared sway) plus crane swing
+    const tip = Math.abs(swayAmp);
+    let left = Infinity;
+    let right = -Infinity;
+    for (const b of tower) {
+      left = Math.min(left, b.x - tip);
+      right = Math.max(right, b.x + b.w + tip);
+    }
+
+    if (crane) {
+      left = Math.min(left, crane.x - crane.w / 2);
+      right = Math.max(right, crane.x + crane.w / 2);
+    }
+
+    targetViewScale = scaleToFitX(left, right);
+  }
+
   function update(dt) {
     cameraY += (targetCameraY - cameraY) * Math.min(1, dt * 4);
+    updateViewScale();
+    viewScale += (targetViewScale - viewScale) * Math.min(1, dt * 5);
     if (shake > 0) shake = Math.max(0, shake - dt * 28);
 
     if (bannerTimer > 0) {
@@ -1034,13 +1084,12 @@
     ctx.globalAlpha = 1;
   }
 
-  function squashAmountFor(index) {
-    if (!squash || squash.index !== index) return 0;
+  function towerSettleScale() {
+    if (!squash) return 1;
     const p = squash.t / squash.dur;
-    // Elastic settle: squash then rebound
-    if (p < 0.35) return p / 0.35;
-    if (p < 0.7) return 1 - ((p - 0.35) / 0.35) * 1.2;
-    return Math.max(0, -0.2 + ((p - 0.7) / 0.3) * 0.2);
+    // Tiny whole-building settle — no per-floor deformation
+    if (p < 0.4) return 1 - 0.025 * (p / 0.4);
+    return 1 - 0.025 * (1 - (p - 0.4) / 0.6);
   }
 
   function draw() {
@@ -1049,13 +1098,33 @@
     ctx.save();
     ctx.translate(sx, sy);
 
+    // Background stays full-bleed; world zooms so swaying tip stays visible
     drawSky();
+
+    const ox = W / 2;
+    const oy = zoomOriginY();
+    ctx.translate(ox, oy);
+    ctx.scale(viewScale, viewScale);
+    ctx.translate(-ox, -oy);
+
     drawGround();
 
-    for (let i = 0; i < tower.length; i++) {
-      const b = tower[i];
-      const sway = blockSwayX(i);
-      drawBlock({ ...b, x: b.x + sway }, b.y - cameraY, 0, 1, squashAmountFor(i));
+    // Draw the tower as one rigid body (shared sway + shared settle)
+    const sway = towerSwayX();
+    const settle = towerSettleScale();
+    if (tower.length) {
+      const base = tower[0];
+      const pivX = base.x + base.w / 2 + sway;
+      const pivY = base.y + base.h - cameraY;
+      ctx.save();
+      ctx.translate(pivX, pivY);
+      ctx.scale(1, settle);
+      ctx.translate(-pivX, -pivY);
+      for (let i = 0; i < tower.length; i++) {
+        const b = tower[i];
+        drawBlock({ ...b, x: b.x + sway }, b.y - cameraY, 0, 1, 0);
+      }
+      ctx.restore();
     }
 
     if (falling) {
