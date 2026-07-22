@@ -1,11 +1,13 @@
 (() => {
   "use strict";
 
-  const LOCAL_KEY = "tower_bloxx_local_board";
+  const LOCAL_CACHE_KEY = "tower_bloxx_global_cache";
   const cfg = window.TOWER_BLOXX_LEADERBOARD || {};
   const URL = cfg.url || "";
   const TOP_N = cfg.topN || 10;
   const MAX_NAME = cfg.maxNameLen || 10;
+
+  let lastGlobalOk = false;
 
   // Letters (incl. Chinese), numbers, spaces, hyphen, underscore — max MAX_NAME characters
   function normalizeName(name) {
@@ -24,17 +26,17 @@
     return Array.from(String(str || "")).length;
   }
 
-  function readLocal() {
+  function readCache() {
     try {
-      const raw = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]");
+      const raw = JSON.parse(localStorage.getItem(LOCAL_CACHE_KEY) || "[]");
       return Array.isArray(raw) ? raw : [];
     } catch {
       return [];
     }
   }
 
-  function writeLocal(entries) {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, TOP_N)));
+  function writeCache(entries) {
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(entries.slice(0, TOP_N)));
   }
 
   function collapseTop(entries) {
@@ -58,24 +60,34 @@
   }
 
   async function fetchRemote() {
-    if (!URL) return [];
+    if (!URL) throw new Error("no leaderboard url");
     const res = await fetch(URL, { method: "GET", cache: "no-store" });
     if (!res.ok) throw new Error("leaderboard fetch failed");
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   }
 
+  // Remote-first: when the cloud API is up, the board is only global scores.
+  // Local storage is a cache / offline fallback — never mixed into a live global list.
   async function getTop10() {
-    let remote = [];
-    try {
-      remote = await fetchRemote();
-    } catch {
-      remote = [];
+    if (!URL) {
+      lastGlobalOk = false;
+      return readCache();
     }
-    const local = readLocal();
-    const merged = collapseTop([...remote, ...local]);
-    writeLocal(merged);
-    return merged;
+    try {
+      const remote = await fetchRemote();
+      const top = collapseTop(remote);
+      writeCache(top);
+      lastGlobalOk = true;
+      return top;
+    } catch {
+      lastGlobalOk = false;
+      return readCache();
+    }
+  }
+
+  function isGlobal() {
+    return lastGlobalOk;
   }
 
   function qualifies(score, top) {
@@ -90,10 +102,12 @@
     const s = Number(score) || 0;
     if (!name || s <= 0) return { ok: false, reason: "invalid" };
 
-    const local = collapseTop([{ name, score: s, ts: Date.now() }, ...readLocal()]);
-    writeLocal(local);
-
-    if (!URL) return { ok: true, global: false, top: local };
+    if (!URL) {
+      const local = collapseTop([{ name, score: s, ts: Date.now() }, ...readCache()]);
+      writeCache(local);
+      lastGlobalOk = false;
+      return { ok: true, global: false, top: local };
+    }
 
     try {
       const remote = await fetchRemote();
@@ -103,6 +117,8 @@
       if (existing && existing._id) {
         if ((Number(existing.score) || 0) >= s) {
           const top = collapseTop(remote);
+          writeCache(top);
+          lastGlobalOk = true;
           return { ok: true, global: true, improved: false, top };
         }
         const put = await fetch(`${URL}/${existing._id}`, {
@@ -121,8 +137,13 @@
       }
 
       const top = await getTop10();
+      if (!lastGlobalOk) throw new Error("verify failed");
       return { ok: true, global: true, improved: true, top };
     } catch (err) {
+      // Keep a local cache so the player isn't blocked offline, but mark as not global.
+      const local = collapseTop([{ name, score: s, ts: Date.now() }, ...readCache()]);
+      writeCache(local);
+      lastGlobalOk = false;
       return { ok: true, global: false, top: local, error: String(err && err.message) };
     }
   }
@@ -133,6 +154,7 @@
     submitScore,
     normalizeName,
     charLen,
+    isGlobal,
     MAX_NAME,
     TOP_N,
   };

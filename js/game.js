@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.5.0";
+  const APP_VERSION = "1.5.1";
   const STORAGE_KEY = "tower_bloxx_best";
   const THEME_KEY = "tower_bloxx_theme_best";
   const I18n = window.TowerBloxxI18n;
@@ -215,10 +215,12 @@
       return [];
     }
     if (el.boardStatusStart) el.boardStatusStart.textContent = t("board.loading");
+    if (el.boardStatusEnd) el.boardStatusEnd.textContent = t("board.loading");
     try {
       const top = await Board.getTop10();
       cachedTop10 = top;
-      const label = statusHint || t("board.global");
+      const label =
+        statusHint || (Board.isGlobal && Board.isGlobal() ? t("board.global") : t("board.offline"));
       renderBoardList(el.boardListStart, el.boardStatusStart, top, label);
       renderBoardList(el.boardListEnd, el.boardStatusEnd, top, label);
       return top;

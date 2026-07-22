@@ -1,8 +1,9 @@
-// Tower Bloxx global leaderboard endpoint (HTTPS + CORS).
-// Free CrudCrud prototype host — if scores stop saving, create a new endpoint at
-// https://crudcrud.com/ and replace LEADERBOARD_URL below (keep the /scores suffix).
+// Tower Bloxx global leaderboard (HTTPS + CORS).
+// Hosted on CrudCrud free prototype API — shared by every player.
+// If the board goes offline for days, create a new endpoint at https://crudcrud.com/
+// and replace `url` below (keep the /scores suffix), then redeploy.
 window.TOWER_BLOXX_LEADERBOARD = {
-  url: "https://crudcrud.com/api/e810888b15374e7ba3fa2a982b626e16/scores",
+  url: "https://crudcrud.com/api/7a8b38b69d424d71966ab384e0939c96/scores",
   maxNameLen: 10,
   topN: 10,
 };
